@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent UI</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #container {
+            width: 80%;
+            height: 80%;
+            background-color: #ffffff;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #header {
+            background-color: #2563eb;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        #threadInfo {
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        #createThreadBtn {
+            background-color: white;
+            color: #2563eb;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        #createThreadBtn:hover {
+            background-color: #e2e8f0;
+        }
+        #chatContainer {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .message {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+            max-width: 70%;
+        }
+        .message.user {
+            align-self: flex-start;
+            background-color: #bfdbfe;
+            border-radius: 10px 10px 10px 0;
+            padding: 10px;
+        }
+        .message.assistant {
+            align-self: flex-end;
+            background-color: #93c5fd;
+            border-radius: 10px 0 10px 10px;
+            padding: 10px;
+            align-items: flex-end;
+        }
+        .timestamp {
+            font-size: 0.7em;
+            color: #64748b;
+            margin-top: 5px;
+            text-align: right;
+        }
+        #inputContainer {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #e2e8f0;
+        }
+        #inputContainer input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        #inputContainer button {
+            padding: 10px 20px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #inputContainer button:hover {
+            background-color: #1d4ed8;
+        }
+        #inputContainer button:disabled {
+            background-color: #94a3b8;
+        }
+        .loading {
+            border: 2px solid #e2e8f0;
+            border-top: 2px solid #ffffff;
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 5px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #promptsContainer {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        #promptsContainer button {
+            padding: 10px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #promptsContainer button:hover {
+            background-color: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="header">
+            <h1>Agent Chat</h1>
+            <div id="threadInfo">
+                <button id="createThreadBtn" onclick="createThread()">Create Thread</button>
+                <span>Thread ID: <span id="threadId">None</span></span>
+            </div>
+        </div>
+        <div id="promptsContainer">
+            <button onclick="setPrompt('Turn on the light in the living room')">Turn on light</button>
+            <button onclick="setPrompt('Turn off the light in the living room')">Turn off light</button>
+            <button onclick="setPrompt('What is the weather today?')">Weather</button>
+            <button onclick="setPrompt('What is the weather in New York')">New York Weather</button>
+        </div>
+        <div id="chatContainer"></div>
+        <div id="inputContainer">
+            <input type="text" id="userInput" placeholder="Type your message here...">
+            <button id="sendMessageBtn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+    <script>
+        let currentThreadId = null;
+        let isProcessing = false;
+
+        function formatTime() {
+            return new Date().toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit'
+            });
+        }
+
+        async function createThread() {
+            const button = document.getElementById('createThreadBtn');
+            button.disabled = true;
+            try {
+                console.log('Sending request to create thread...');
+                const response = await fetch('http://localhost:8000/threads', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+                const data = await response.json();
+                currentThreadId = data.thread_id;
+                console.log('Thread created:', currentThreadId);
+                document.getElementById('threadId').textContent = currentThreadId;
+                document.getElementById('chatContainer').innerHTML = '';
+            } catch (err) {
+                console.error('Error creating thread:', err);
+                alert('Error creating thread: ' + err);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        function addChatMessage(sender, text, imageBase64 = null) {
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.className = `message ${sender}`;
+            div.innerHTML = `
+                <div class="message-content">${text}</div>
+                ${imageBase64 ? `<img src="data:image/png;base64,${imageBase64}" alt="Assistant Image" style="max-width: 100%; margin-top: 10px;">` : ''}
+                <div class="timestamp">${formatTime()}</div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function sendMessage() {
+            if (isProcessing) return;
+            
+            if (!currentThreadId) {
+                // Automatically create thread if it doesn't exist
+                await createThread();
+                if (!currentThreadId) {
+                    alert('Failed to create thread');
+                    return;
+                }
+            }
+
+            const input = document.getElementById('userInput');
+            const userMsg = input.value.trim();
+            if (!userMsg) return;
+
+            input.value = '';
+            addChatMessage('user', userMsg);
+            
+            isProcessing = true;
+            const button = document.getElementById('sendMessageBtn');
+            button.disabled = true;
+            button.innerHTML = 'Sending<span class="loading"></span>';
+
+            try {
+                const response = await fetch(`http://localhost:8000/threads/${currentThreadId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: userMsg })  // Changed from just userMsg to proper JSON object
+                });
+                const data = await response.json();
+                if (data.error) {
+                    addChatMessage('assistant', 'Error: ' + data.error);
+                } else {
+                    addChatMessage('assistant', data.assistant_text || 'No text response', data.assistant_image);
+                }
+            } catch (err) {
+                addChatMessage('assistant', 'Request failed: ' + err);
+            } finally {
+                isProcessing = false;
+                button.disabled = false;
+                button.innerHTML = 'Send';
+            }
+        }
+
+        document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
+        document.getElementById('userInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function setPrompt(prompt) {
+            const input = document.getElementById('userInput');
+            input.value = prompt;
+            input.focus();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+POST http://localhost:8000/threads
+
+###
+POST http://localhost:8000/threads/thread_meYRMrkRtUiI1u0ZGH0z7PEN/messages
+Content-Type: application/json
+
+{
+    "message": "How's the weather in London"
+}
