@@ -1,17 +1,31 @@
 import os
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import CodeInterpreterTool
-from azure.identity import DefaultAzureCredential
-from fastapi import FastAPI
-from typing import Dict
 from azure.ai.projects.models import FunctionTool, ToolSet
-from typing import Any, Callable, Set, Dict
+from azure.identity import DefaultAzureCredential
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
 import base64
+import jwt
+from jwt.exceptions import InvalidTokenError
+from dotenv import load_dotenv
+from typing import Dict, Any, Callable, Set
+
+# Load environment variables
+load_dotenv(dotenv_path="../.env")
 
 app = FastAPI()
+security = HTTPBearer()
+
+# Get JWT secret from environment
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise ValueError("JWT_SECRET environment variable not set")
+
+
 
 # Add CORS middleware
 app.add_middleware(
@@ -19,23 +33,53 @@ app.add_middleware(
     allow_origins=["*"],  # Adjust this to specify allowed origins
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "Authorization"],
 )
 
-# Load environment variables
-from dotenv import load_dotenv
-load_dotenv(dotenv_path="../.env")
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        print(f"Token payload: {payload}")
+        return payload
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token"
+        )
 
 # functions for agent to call
 def turn_on_light(room: str) -> str:
+    """
+    Turns on the light in the specified room.
+
+    :param room (str): The room where the light should be turned on.
+    :return: Confirmation message.
+    :rtype: str
+    """
     return f"Light in room {room} turned on"
 
 # function to turn off light
 def turn_off_light(room: str) -> str:
+    """
+    Turns off the light in the specified room.
+
+    :param room (str): The room where the light should be turned off.
+    :return: Confirmation message.
+    :rtype: str
+    """
+    
     return f"Light in room {room} turned off"
 
 # function to get temperature in a location
 def get_temperature(location: str) -> str:
+    """
+    Gets the current temperature for the specified location.
+
+    :param location (str): The location to get the temperature for.
+    :return: Current temperature message.
+    :rtype: str
+    """
     
     # Get lat/long from location using Nominatim API
     geocode_url = f"https://nominatim.openstreetmap.org/search?q={location}&format=json"
@@ -87,16 +131,24 @@ agent = project_client.agents.create_agent(
     toolset=toolset
 )
 
+# Protected route to create a thread
+# Switch the comments on the function signature to use the token verification or not
+
 @app.post("/threads")
-def create_thread() -> Dict[str, str]:
+# async def create_thread() -> Dict[str, str]:
+async def create_thread(payload: dict = Depends(verify_token)) -> Dict[str, str]:
     thread = project_client.agents.create_thread()
     return {"thread_id": thread.id}
 
 class MessageRequest(BaseModel):
     message: str
+    
+# Protected route to add a message to a thread
+# Switch the comments on the function signature to use the token verification or not
 
 @app.post("/threads/{thread_id}/messages")
-def send_message(thread_id: str, request: MessageRequest):
+async def send_message(thread_id: str, request: MessageRequest, payload: dict = Depends(verify_token)):
+# async def send_message(thread_id: str, request: MessageRequest):
     created_msg = project_client.agents.create_message(
         thread_id=thread_id,
         role="user",
