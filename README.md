@@ -3,8 +3,8 @@
 In the main folder, create a .env file with the following content:
 
 ```bash
-PROJECT_CONNECTION_STRING=connection string to Azure AI Foundry project
-JWT_SECRET=JWT secret if you want to protect routes
+PROJECT_CONNECTION_STRING="connection string to Azure AI Foundry project"
+JWT_SECRET="JWT secret if you want to protect routes"
 ```
 
 If you do not want to protect routes, set JWT_SECRET to anything and check the routes to comment/uncomment the function signature.
