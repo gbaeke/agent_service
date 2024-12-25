@@ -1,6 +1,12 @@
 # Azure AI Agent Service Demo
 
-In the main folder, create a .env file with the following content:
+This code is discussed in the following post: https://blog.baeke.info/2024/12/24/creating-an-agent-with-the-azure-ai-agent-sdk/
+
+Ensure you gave an Azure AI Foundry hub and project. The hub should have gpt-4o-mini deployed. You can use another model if you wish but then you have to change the Python code in `agent_api.py`.
+
+Ensure you have the Azure CLI and use it to login to your Azure account. Use the command `az login` to login. Your account needs AI Developer role on the project.
+
+In the main folder, create a `.env` file with the following content:
 
 ```bash
 PROJECT_CONNECTION_STRING="connection string to Azure AI Foundry project"
